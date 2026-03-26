@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeatSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Wordmark: one copy in #tpl-heatsync-logo; empty h1s use data-heatsync-logo (mounted in client.js) -->
+<template id="tpl-heatsync-logo">
+  <span class="logo-slice-glow">
+    <span class="logo-slice-inner">
+      <span class="logo-slice-spacer"><span class="logo-heat">HEAT</span>SYNC</span>
+      <span class="logo-slice-part logo-slice-part--top" aria-hidden="true"><span class="logo-heat">HEAT</span>SYNC</span>
+      <span class="logo-slice-part logo-slice-part--bottom" aria-hidden="true"><span class="logo-heat">HEAT</span>SYNC</span>
+    </span>
+  </span>
+</template>
+
+<!-- ── Landing ─────────────────────────────────────────────────────────── -->
+<div id="screen-landing" class="screen active">
+  <div class="card card--compact">
+    <h1 class="logo logo-slice" data-heatsync-logo aria-label="HeatSync"></h1>
+    <p class="tagline">Don't get burned</p>
+    <div id="landing-error" class="error-msg hidden"></div>
+
+    <div id="landing-home">
+      <div class="btn-col">
+        <button type="button" id="btn-show-create" class="btn btn-primary btn-full" title="Create a new game" aria-label="Create a new game">Create</button>
+        <button type="button" id="btn-show-join" class="btn btn-secondary btn-full" title="Join with a code" aria-label="Join with a code">Join</button>
+        <button type="button" id="btn-htp-landing" class="btn btn-ghost btn-full" title="How to play" aria-label="How to play">How to play</button>
+      </div>
+    </div>
+
+    <div id="landing-create" class="hidden">
+      <div class="field">
+        <input id="create-name" type="text" placeholder="Enter name" maxlength="20" autocomplete="off">
+      </div>
+      <div class="field">
+        <input id="create-password" type="password" placeholder="Password (optional)" maxlength="40" autocomplete="off">
+      </div>
+      <div class="code-preview-row">
+        <span class="code-preview-label">Room code</span>
+        <span id="create-code-preview" class="code-preview-value"></span>
+        <button type="button" id="btn-regen-code" class="btn-regen" title="Generate a different code" aria-label="Generate a different code">↻</button>
+      </div>
+      <div id="create-error" class="error-msg hidden"></div>
+      <div class="btn-col">
+        <button type="button" id="btn-create" class="btn btn-primary btn-full" title="Create and enter the lobby" aria-label="Create and enter the lobby">Create</button>
+        <button type="button" id="btn-back-create" class="btn-back" title="Back to main menu" aria-label="Back to main menu">← Back</button>
+      </div>
+    </div>
+
+    <div id="landing-join" class="hidden">
+      <div class="field">
+        <input id="join-name" type="text" placeholder="Enter name" maxlength="20" autocomplete="off">
+      </div>
+      <div class="field">
+        <input id="join-code" type="text" placeholder="Code" maxlength="4" autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div id="join-password-step" class="field hidden">
+        <p class="join-password-hint">This code is password protected.</p>
+        <input id="join-password" type="password" placeholder="Password" maxlength="40" autocomplete="new-password" name="heatsync_join_pw">
+      </div>
+      <div id="join-error" class="error-msg hidden"></div>
+      <div class="btn-col">
+        <button type="button" id="btn-join" class="btn btn-primary btn-full" title="Join with this code" aria-label="Join with this code">Join</button>
+        <button type="button" id="btn-back-join" class="btn-back" title="Back to main menu" aria-label="Back to main menu">← Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lobby ────────────────────────────────────────────────────────────── -->
+<div id="screen-lobby" class="screen">
+  <div class="card">
+    <h1 class="logo logo--compact logo-slice" data-heatsync-logo aria-label="HeatSync"></h1>
+    <div class="lobby-header">
+      <div>
+        <h2>LOBBY</h2>
+        <div class="room-code-row">
+          <button type="button" class="room-code room-code--btn" id="btn-copy-code" title="Copy code" aria-label="Copy room code">
+            <span id="lobby-code-text"></span>
+          </button>
+          <button type="button" class="btn btn-icon btn-small" id="btn-copy-link" title="Copy invite link" aria-label="Copy invite link">
+            <svg class="btn-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <p class="lobby-minimum-hint" id="lobby-minimum-hint">Fill at least <strong>3 seats</strong> to start (up to 6 players)</p>
+    <div id="lobby-error" class="error-msg hidden"></div>
+    <div id="lobby-slots" class="lobby-slots" aria-label="Player seats"></div>
+
+    <!-- Timer settings — host only -->
+    <div id="lobby-timer-row" class="lobby-timer-row hidden">
+      <label class="timer-toggle-label">
+        <span class="timer-toggle-text">Round timer</span>
+        <button type="button" id="btn-timer-toggle" class="timer-toggle" role="switch" aria-checked="false" aria-label="Enable round timer">
+          <span class="timer-toggle-thumb"></span>
+        </button>
+      </label>
+      <div id="timer-duration-controls" class="timer-duration-controls hidden">
+        <button type="button" id="btn-timer-dec" class="timer-step-btn" aria-label="Decrease timer">−</button>
+        <span id="timer-duration-display" class="timer-duration-display">3:00</span>
+        <button type="button" id="btn-timer-inc" class="timer-step-btn" aria-label="Increase timer">+</button>
+      </div>
+    </div>
+
+    <div class="lobby-actions">
+      <button type="button" class="btn btn-secondary" id="btn-leave-lobby" title="Return to the main menu" aria-label="Leave">Leave</button>
+      <button type="button" class="btn btn-ghost btn-htp" title="How to play" aria-label="How to play">How to play</button>
+      <button type="button" id="btn-start" class="btn btn-primary hidden" title="Start when at least 3 players are seated" aria-label="Start when at least 3 players are seated">Start</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Allocation ───────────────────────────────────────────────────────── -->
+<div id="screen-allocation" class="screen">
+  <div class="card">
+    <h1 class="logo logo--compact logo-slice" data-heatsync-logo aria-label="HeatSync"></h1>
+    <div class="card-bar card-bar--split">
+      <div class="card-bar__left">
+        <button type="button" class="btn btn-ghost btn-leave-game" title="Return to the main menu" aria-label="Leave">Leave</button>
+        <button type="button" class="btn btn-ghost btn-htp" title="How to play" aria-label="How to play">?</button>
+      </div>
+      <button type="button" class="room-code room-code--btn room-code--ingame ingame-code-badge" id="alloc-code-badge" title="Copy room code" aria-label="Copy room code"></button>
+      <button type="button" class="btn btn-ghost btn-host-end-game hidden" title="End the game for everyone and return to the lobby" aria-label="End game to lobby">End game</button>
+    </div>
+    <div class="phase-header phase-header--allocation">
+      <span class="phase-label">Allocation</span>
+    </div>
+    <div id="alloc-timer" class="alloc-timer hidden" aria-live="polite" aria-label="Time remaining">
+      <span id="alloc-timer-display" class="alloc-timer__display">3:00</span>
+    </div>
+    <div class="alloc-status-bar" role="status" aria-live="polite" aria-label="Round progress, resources left, and heat">
+      <div class="alloc-status-bar__rounds">
+        <div class="round-track round-track--embed" id="alloc-round-track"></div>
+      </div>
+      <span class="alloc-status-bar__rule" aria-hidden="true"></span>
+      <div class="alloc-status-bar__stat">
+        <span class="alloc-status-bar__stat-label">Resources</span>
+        <strong id="remaining-count" class="alloc-status-bar__value">0</strong>
+      </div>
+      <span class="alloc-status-bar__rule" aria-hidden="true"></span>
+      <div class="alloc-status-bar__stat alloc-status-bar__stat--heat">
+        <span class="alloc-status-bar__stat-label">Heat</span>
+        <span id="alloc-heat-pips" class="heat-pips heat-pips--bar"></span>
+      </div>
+    </div>
+    <p class="phase-desc">Pick <strong>2</strong> zones for your crew<br>Distribute all your resources between them</p>
+
+    <div class="zones-grid" id="zones-grid">
+      <div class="zone-card" data-zone="west">
+        <div class="zone-pips" id="pips-west" aria-hidden="true"></div>
+        <div class="zone-name">The Docks</div>
+        <div class="zone-crew">Crew</div>
+        <div class="zone-res-row zone-res-row--inactive">
+          <button type="button" class="res-btn" data-zone="west" data-dir="-1" title="Remove one resource from this zone" aria-label="Decrease resources in The Docks">−</button>
+          <span class="res-val res-val--empty" id="res-west">x</span>
+          <button type="button" class="res-btn" data-zone="west" data-dir="1" title="Add one resource to this zone" aria-label="Increase resources in The Docks">+</button>
+        </div>
+        <div class="zone-res-label">resources</div>
+      </div>
+      <div class="zone-card" data-zone="downtown">
+        <div class="zone-pips" id="pips-downtown" aria-hidden="true"></div>
+        <div class="zone-name">The Strip</div>
+        <div class="zone-crew">Crew</div>
+        <div class="zone-res-row zone-res-row--inactive">
+          <button type="button" class="res-btn" data-zone="downtown" data-dir="-1" title="Remove one resource from this zone" aria-label="Decrease resources in The Strip">−</button>
+          <span class="res-val res-val--empty" id="res-downtown">x</span>
+          <button type="button" class="res-btn" data-zone="downtown" data-dir="1" title="Add one resource to this zone" aria-label="Increase resources in The Strip">+</button>
+        </div>
+        <div class="zone-res-label">resources</div>
+      </div>
+      <div class="zone-card" data-zone="east">
+        <div class="zone-pips" id="pips-east" aria-hidden="true"></div>
+        <div class="zone-name">The Slums</div>
+        <div class="zone-crew">Crew</div>
+        <div class="zone-res-row zone-res-row--inactive">
+          <button type="button" class="res-btn" data-zone="east" data-dir="-1" title="Remove one resource from this zone" aria-label="Decrease resources in The Slums">−</button>
+          <span class="res-val res-val--empty" id="res-east">x</span>
+          <button type="button" class="res-btn" data-zone="east" data-dir="1" title="Add one resource to this zone" aria-label="Increase resources in The Slums">+</button>
+        </div>
+        <div class="zone-res-label">resources</div>
+      </div>
+    </div>
+
+    <div id="alloc-error" class="error-msg hidden"></div>
+
+    <div id="alloc-submit-section">
+      <button type="button" id="btn-submit" class="btn btn-primary" disabled title="Submit when two zones are chosen and all resources are placed" aria-label="Submit allocation">Submit</button>
+    </div>
+    <div id="alloc-waiting" class="hidden">
+      <p class="status-text">Submitted. Waiting for others…</p>
+      <p id="submitted-count" class="status-text dim"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reveal ────────────────────────────────────────────────────────────── -->
+<div id="screen-reveal" class="screen">
+  <div class="card">
+    <h1 class="logo logo--compact logo-slice" data-heatsync-logo aria-label="HeatSync"></h1>
+    <div class="card-bar card-bar--split">
+      <div class="card-bar__left">
+        <button type="button" class="btn btn-ghost btn-leave-game" title="Return to the main menu" aria-label="Leave">Leave</button>
+        <button type="button" class="btn btn-ghost btn-htp" title="How to play" aria-label="How to play">?</button>
+      </div>
+      <button type="button" class="room-code room-code--btn room-code--ingame ingame-code-badge" id="reveal-code-badge" title="Copy room code" aria-label="Copy room code"></button>
+      <button type="button" class="btn btn-ghost btn-host-end-game hidden" title="End the game for everyone and return to the lobby" aria-label="End game to lobby">End game</button>
+    </div>
+    <div class="phase-header">
+      <div class="round-track" id="reveal-round-track"></div>
+      <span class="phase-label">Reveal</span>
+    </div>
+
+    <section class="reveal-section">
+      <h3>Zone Totals</h3>
+      <div class="zone-totals" id="reveal-zone-totals"></div>
+      <div class="outcome-banner" id="reveal-outcome-banner"></div>
+    </section>
+
+    <section class="reveal-section">
+      <h3>Results</h3>
+      <div id="reveal-player-results"></div>
+    </section>
+
+    <section class="reveal-section">
+      <h3>Standings</h3>
+      <table id="reveal-standings" class="standings-table"></table>
+    </section>
+
+    <div id="reveal-heat-penalties" class="hidden">
+      <div class="heat-notice"></div>
+    </div>
+
+    <p id="reveal-ready-count" class="status-text reveal-ready-line"></p>
+    <div class="btn-row">
+      <button type="button" id="btn-continue" class="btn btn-primary" title="Ready for the next allocation round" aria-label="Ready for the next round">I'm ready · Round <span id="next-round-num"></span></button>
+      <button type="button" id="btn-see-results" class="btn btn-primary hidden" title="View final scores" aria-label="View final scores">Final results</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Game Over ─────────────────────────────────────────────────────────── -->
+<div id="screen-gameover" class="screen">
+  <div class="card">
+    <h1 class="logo logo--compact logo-slice" data-heatsync-logo aria-label="HeatSync"></h1>
+    <div class="card-bar card-bar--split">
+      <div class="card-bar__left">
+        <button type="button" class="btn btn-ghost btn-leave-game" title="Return to the main menu" aria-label="Leave">Leave</button>
+        <button type="button" class="btn btn-ghost btn-htp" title="How to play" aria-label="How to play">?</button>
+      </div>
+      <button type="button" class="room-code room-code--btn room-code--ingame ingame-code-badge" id="gameover-code-badge" title="Copy room code" aria-label="Copy room code"></button>
+      <button type="button" class="btn btn-ghost btn-host-end-game hidden" title="End the game for everyone and return to the lobby" aria-label="End game to lobby">End game</button>
+    </div>
+    <h2>Game Over</h2>
+    <div id="winner-banner" class="winner-banner"></div>
+    <h3>Final Standings</h3>
+    <table id="gameover-standings" class="standings-table"></table>
+    <button type="button" id="btn-play-again" class="btn btn-primary hidden" title="Everyone returns to the lobby" aria-label="Play again">Play again</button>
+    <p id="gameover-waiting" class="status-text hidden">Waiting for host to start a new game…</p>
+  </div>
+</div>
+
+<!-- ── How To Play Modal ──────────────────────────────────────────────── -->
+<div id="htp-modal" class="htp-modal hidden" role="dialog" aria-modal="true" aria-label="How to play">
+  <div class="htp-backdrop" id="htp-backdrop"></div>
+  <div class="htp-panel">
+    <button type="button" class="htp-close" id="htp-close" aria-label="Close how to play">✕</button>
+    <div class="htp-slides" id="htp-slides">
+
+      <div class="htp-slide" data-slide="0">
+        <div class="htp-slide__tag">Welcome</div>
+        <h2 class="htp-slide__title">The City is Yours</h2>
+        <p class="htp-slide__body">A new mayor is cleaning up the city—fast. Patrols are shifting, pressure is rising, and a major takedown is coming.<br><br>They can't be everywhere at once. Sometimes a zone runs hot. Other times, it's wide open.<br><br>Pick your spots, split your resources, and stay off the radar. Build your operation. Read the streets. When it's over, <em>only one crew runs the town.</em></p>
+      </div>
+
+      <div class="htp-slide" data-slide="1">
+        <div class="htp-slide__tag">Setup</div>
+        <h2 class="htp-slide__title">Getting Started</h2>
+        <ul class="htp-slide__list">
+          <li><span class="htp-hl">3–6 players</span>, 4 rounds</li>
+          <li>Each player starts with <span class="htp-hl">1 resource</span></li>
+          <li>Three zones: <span class="htp-zone htp-zone--west">The Docks</span>, <span class="htp-zone htp-zone--downtown">The Strip</span>, <span class="htp-zone htp-zone--east">The Slums</span></li>
+          <li>Most resources after 4 rounds wins. Tiebreak: least heat</li>
+        </ul>
+      </div>
+
+      <div class="htp-slide" data-slide="2">
+        <div class="htp-slide__tag">Each Round</div>
+        <h2 class="htp-slide__title">The Allocation</h2>
+        <ul class="htp-slide__list">
+          <li>Choose exactly <span class="htp-hl">2 zones</span> — your crew goes to each</li>
+          <li>Split all your resources between them however you want</li>
+          <li>No resources? Your crew still goes — both zones get 1 crew each</li>
+          <li>Everyone's allocations are revealed at the same time</li>
+        </ul>
+      </div>
+
+      <div class="htp-slide" data-slide="3">
+        <div class="htp-slide__tag">Zone Resolve</div>
+        <h2 class="htp-slide__title">Reading the Heat</h2>
+        <ul class="htp-slide__list">
+          <li><span class="htp-neg">Highest</span> — Hot zone. Cops swarm it. <span class="htp-neg">Lose everything</span> you sent.</li>
+          <li><span class="htp-hl">Middle</span> — Even. Keep what you sent and <span class="htp-pos">gain +1 resource</span>.</li>
+          <li><span class="htp-pos">Lowest</span> — Clean run. <span class="htp-pos">Triple</span> everything you sent there.</li>
+        </ul>
+      </div>
+
+      <div class="htp-slide" data-slide="4">
+        <div class="htp-slide__tag">Ties</div>
+        <h2 class="htp-slide__title">Split Attention</h2>
+        <ul class="htp-slide__list">
+          <li><span class="htp-hl">Tied lowest</span> — Light attention. <span class="htp-pos">Double</span> that allocation. The remaining highest zone is swarmed and <span class="htp-neg">loses everything</span>.</li>
+          <li><span class="htp-hl">Tied highest</span> — Split attention. <span class="htp-neg">Halve</span> that allocation (round down). The remaining lowest zone <span class="htp-pos">triples</span>.</li>
+          <li><span class="htp-neg">All three tied</span> — Citywide crackdown. For each zone where you sent resources, <span class="htp-neg">lose 1 resource</span>.</li>
+        </ul>
+      </div>
+
+      <div class="htp-slide" data-slide="5">
+        <div class="htp-slide__tag">Heat</div>
+        <h2 class="htp-slide__title">Don't Get Burned</h2>
+        <ul class="htp-slide__list">
+          <li>From <span class="htp-hl">Round 2</span> onward, begin a round with <span class="htp-hl">0 resources</span>? You <span class="htp-neg">gain heat</span>.</li>
+          <li>At game end: most resources wins</li>
+          <li>Still tied? <span class="htp-neg">Least heat</span> wins. Still tied → draw.</li>
+          <li>Always keep at least 1 resource to stay cool</li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="htp-nav">
+      <button type="button" class="htp-nav__btn" id="htp-prev" aria-label="Previous slide">←</button>
+      <div class="htp-dots" id="htp-dots"></div>
+      <button type="button" class="htp-nav__btn" id="htp-next" aria-label="Next slide">→</button>
+    </div>
+  </div>
+</div>
+
+<div id="leave-confirm-modal" class="leave-modal hidden" role="dialog" aria-modal="true" aria-labelledby="leave-modal-title">
+  <div class="leave-modal__backdrop" id="leave-modal-backdrop"></div>
+  <div class="leave-modal__panel">
+    <p id="leave-modal-title" class="leave-modal__title">Return to the main menu?</p>
+    <div class="leave-modal__actions">
+      <button type="button" class="btn btn-secondary" id="leave-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="leave-modal-confirm">Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="end-game-modal" class="leave-modal hidden" role="dialog" aria-modal="true" aria-labelledby="end-game-modal-title">
+  <div class="leave-modal__backdrop" id="end-game-modal-backdrop"></div>
+  <div class="leave-modal__panel">
+    <p id="end-game-modal-title" class="leave-modal__title">End the game and return everyone to the lobby? Scores and round progress will reset.</p>
+    <div class="leave-modal__actions">
+      <button type="button" class="btn btn-secondary" id="end-game-modal-cancel">Cancel</button>
+      <button type="button" class="btn btn-danger" id="end-game-modal-confirm">End game</button>
+    </div>
+  </div>
+</div>
+
+<div class="alpha-badge" aria-hidden="true">ALPHA Playtest</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
