@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const { ZONES, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('./lib/gameLogic');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -30,7 +31,6 @@ const rooms = new Map(); // roomCode -> Room
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const ZONES = ['east', 'west', 'downtown'];
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function generateRoomCode() {
@@ -132,88 +132,8 @@ function getPublicState(room) {
 
 // ─── Game Logic ───────────────────────────────────────────────────────────────
 
-function aggregateZones(room) {
-  const totals = { east: 0, west: 0, downtown: 0 };
-  for (const alloc of room.pendingAllocations.values()) {
-    for (const zone of ZONES) {
-      totals[zone] += alloc[zone].crew + alloc[zone].resources;
-    }
-  }
-  return totals;
-}
-
-function classifyZones(totals) {
-  const vals = ZONES.map(z => totals[z]);
-  const counts = {};
-  for (const v of vals) counts[v] = (counts[v] || 0) + 1;
-  const unique = Object.keys(counts).map(Number).sort((a, b) => a - b);
-
-  if (unique.length === 3) {
-    const roles = {};
-    roles[ZONES.find(z => totals[z] === unique[0])] = 'lowest';
-    roles[ZONES.find(z => totals[z] === unique[1])] = 'middle';
-    roles[ZONES.find(z => totals[z] === unique[2])] = 'highest';
-    return { outcome: 'all_different', roles };
-  }
-
-  if (unique.length === 1) {
-    const roles = {};
-    ZONES.forEach(z => roles[z] = 'tied');
-    return { outcome: 'all_tied', roles };
-  }
-
-  // Two zones tied
-  const tiedVal = unique.find(v => counts[v] === 2);
-  const loneVal = unique.find(v => counts[v] === 1);
-  const tiedZones = ZONES.filter(z => totals[z] === tiedVal);
-  const loneZone = ZONES.find(z => totals[z] === loneVal);
-
-  const roles = {};
-  if (tiedVal < loneVal) {
-    // Two tied for lowest
-    tiedZones.forEach(z => roles[z] = 'tied_lowest');
-    roles[loneZone] = 'lone_highest';
-    return { outcome: 'two_tied_lowest', roles };
-  } else {
-    // Two tied for highest
-    tiedZones.forEach(z => roles[z] = 'tied_highest');
-    roles[loneZone] = 'lone_lowest';
-    return { outcome: 'two_tied_highest', roles };
-  }
-}
-
-// Returns resource delta for a player's contribution to one zone.
-// crew is always 1 when player is in the zone, res >= 0.
-function zoneDelta(crew, res, role, classificationOutcome) {
-  if (classificationOutcome === 'all_tied') {
-    // Crackdown: lose 1 resource per zone with any resources placed
-    return (crew + res >= 2) ? -1 : 0;
-  }
-  switch (role) {
-    case 'highest':
-    case 'lone_highest':
-      // Lose allocation: lose invested resources + pay 1 for crew recovery
-      return -(res + 1);
-    case 'middle':
-      // Keep allocation + gain 1 bonus resource
-      return 1;
-    case 'lowest':
-    case 'lone_lowest':
-      // Triple: receive 3*(crew+res), having spent res → net = 3+2*res
-      return 3 + 2 * res;
-    case 'tied_lowest':
-      // Double: receive 2*(crew+res), having spent res → net = 2+res
-      return 2 + res;
-    case 'tied_highest':
-      // Halve: receive floor((crew+res)/2), having spent res
-      return Math.floor((crew + res) / 2) - res;
-    default:
-      return 0;
-  }
-}
-
 function resolveRound(room) {
-  const totals = aggregateZones(room);
+  const totals = aggregateZones(room.pendingAllocations);
   const classification = classifyZones(totals);
   const playerResults = [];
 
@@ -292,40 +212,12 @@ function resolveRound(room) {
 
   if (room.round >= 4) {
     room.phase = 'end';
-    return { resolveData, gameOver: true, winners: determineWinners(room) };
+    return { resolveData, gameOver: true, winners: determineWinners([...room.players.values()]) };
   }
 
   room.round += 1;
   room.phase = 'discussion';
   return { resolveData, gameOver: false, winners: null };
-}
-
-function determineWinners(room) {
-  const players = [...room.players.values()];
-  const maxRes = Math.max(...players.map(p => p.resources));
-  const contenders = players.filter(p => p.resources === maxRes);
-  if (contenders.length === 1) return [contenders[0].name];
-  const minHeat = Math.min(...contenders.map(p => p.heat));
-  return contenders.filter(p => p.heat === minHeat).map(p => p.name);
-}
-
-function validateAllocation(alloc, player) {
-  if (!alloc || typeof alloc !== 'object') return 'Invalid allocation';
-  let crewCount = 0;
-  let totalResources = 0;
-  for (const zone of ZONES) {
-    const z = alloc[zone];
-    if (!z || typeof z !== 'object') return 'Invalid allocation format';
-    const { crew, resources } = z;
-    if (crew !== 0 && crew !== 1) return 'Invalid crew value';
-    if (typeof resources !== 'number' || !Number.isInteger(resources) || resources < 0) return 'Invalid resources';
-    if (resources > 0 && crew === 0) return 'Cannot place resources without crew';
-    crewCount += crew;
-    totalResources += resources;
-  }
-  if (crewCount !== 2) return 'Must assign crew to exactly 2 zones';
-  if (totalResources !== player.resources) return 'Must allocate all your resources';
-  return null;
 }
 
 // ─── Timer helpers ────────────────────────────────────────────────────────────
