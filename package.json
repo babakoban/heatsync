@@ -6,10 +6,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "playtest": "concurrently --kill-others -n server,ngrok -c cyan,yellow \"node server.js\" \"ngrok http 3000\""
   },
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
