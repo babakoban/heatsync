@@ -89,7 +89,7 @@ function initEndGameModal() {
 }
 
 /* ── How To Play Modal ─────────────────────────────────────────────────── */
-const HTP_SLIDE_COUNT = 6;
+const HTP_SLIDE_COUNT = 7;
 let htpCurrent = 0;
 
 function openHtp(startSlide = 0) {

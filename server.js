@@ -223,6 +223,7 @@ function resolveRound(room) {
     if (!player) continue;
 
     let totalDelta = 0;
+    let crewOnlyTiedHighest = 0;
     const zoneResults = [];
 
     for (const zone of ZONES) {
@@ -232,6 +233,9 @@ function resolveRound(room) {
       const role = classification.roles[zone];
       const delta = zoneDelta(crew, res, role, classification.outcome);
       totalDelta += delta;
+
+      // Crew-only tied_highest: floor(1/2)=0 means crew is lost — charge 1 Ⓡ after all other deltas
+      if (role === 'tied_highest' && res === 0) crewOnlyTiedHighest++;
 
       let outcomeLabel;
       if (classification.outcome === 'all_tied') {
@@ -243,7 +247,12 @@ function resolveRound(room) {
       zoneResults.push({ zone, sent: { crew, resources: res }, outcome: outcomeLabel, delta });
     }
 
-    player.resources = Math.max(0, player.resources + totalDelta);
+    // Apply main delta first, then crew recovery penalty (only if resources remain)
+    const beforeResources = player.resources;
+    const afterMain = Math.max(0, beforeResources + totalDelta);
+    const crewPenalty = Math.min(crewOnlyTiedHighest, afterMain);
+    player.resources = afterMain - crewPenalty;
+    totalDelta = player.resources - beforeResources; // actual net change for display
     playerResults.push({ name, zoneResults, totalDelta, newResources: player.resources, newHeat: player.heat });
   }
 
