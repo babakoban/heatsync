@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const { ZONES, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('./lib/gameLogic');
+const { ZONES, ZONE_TURF, PLAYER_ICONS, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('./lib/gameLogic');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -32,6 +32,7 @@ const rooms = new Map(); // roomCode -> Room
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const VALID_CODE_RE = /^[A-Z2-9]{4}$/;
 
 function generateRoomCode() {
   let code;
@@ -41,8 +42,8 @@ function generateRoomCode() {
   return code;
 }
 
-function createPlayer(socketId, name) {
-  return { socketId, name, resources: 1, heat: 0, connected: true };
+function createPlayer(socketId, name, icon, homeTurf = 'docks') {
+  return { socketId, name, resources: 1, heat: 0, connected: true, icon: icon || '♠', homeTurf };
 }
 
 function findPlayerBySocket(room, socketId) {
@@ -60,11 +61,17 @@ function transferHostIfNeeded(room, departedName) {
   if (next) room.hostName = next.name;
 }
 
-/** After removing a player from room.players — clean maps and maybe advance phase. */
+/**
+ * Called after a player leaves or disconnects. Cleans up pending maps and
+ * auto-advances the phase if everyone remaining has acted.
+ * NOTE: does NOT call transferHostIfNeeded — callers must do that themselves
+ * only when the player has been fully deleted from room.players (not merely
+ * marked disconnected), so a disconnected host can still reclaim their role
+ * on reconnect.
+ */
 function afterPlayerRemoved(room, code, removedName) {
   room.pendingAllocations.delete(removedName);
   room.readyPlayers.delete(removedName);
-  transferHostIfNeeded(room, removedName);
 
   if (room.players.size === 0) {
     rooms.delete(code);
@@ -104,17 +111,21 @@ function getPublicState(room) {
     hostName: room.hostName,
     timerEnabled: room.timerEnabled,
     timerDuration: room.timerDuration,
+    homeTurfEnabled: room.homeTurfEnabled,
+    crewRecoveryCostEnabled: room.crewRecoveryCostEnabled,
     players: [...room.players.values()].map(p => ({
       name: p.name,
       resources: p.resources,
       heat: p.heat,
       connected: p.connected,
+      icon: p.icon,
+      homeTurf: p.homeTurf,
     })),
   };
   if (room.phase === 'allocation') {
     state.allocationProgress = {
       submittedCount: room.pendingAllocations.size,
-      totalCount: room.players.size,
+      totalCount: [...room.players.values()].filter(p => p.connected !== false).length,
     };
     if (room.timerEnabled && room.timerEndAt) {
       state.timerEndAt = room.timerEndAt;
@@ -123,7 +134,7 @@ function getPublicState(room) {
   if (room.phase === 'discussion') {
     state.readyProgress = {
       readyCount: room.readyPlayers.size,
-      totalCount: room.players.size,
+      totalCount: [...room.players.values()].filter(p => p.connected !== false).length,
       readyNames: [...room.readyPlayers],
     };
   }
@@ -151,7 +162,8 @@ function resolveRound(room) {
       if (crew === 0 && res === 0) continue; // player didn't go here
 
       const role = classification.roles[zone];
-      const delta = zoneDelta(crew, res, role, classification.outcome);
+      const isHomeTurf = room.homeTurfEnabled && ZONE_TURF[zone] === player.homeTurf;
+      const delta = zoneDelta(crew, res, role, classification.outcome, isHomeTurf);
       totalDelta += delta;
 
       // Crew-only tied_highest: floor(1/2)=0 means crew is lost — charge 1 Ⓡ after all other deltas
@@ -167,17 +179,21 @@ function resolveRound(room) {
       zoneResults.push({ zone, sent: { crew, resources: res }, outcome: outcomeLabel, delta });
     }
 
-    // Apply main delta first, then crew recovery penalty (only if resources remain)
+    // Apply main delta first, then crew recovery penalty (only if setting enabled)
     const beforeResources = player.resources;
     const afterMain = Math.max(0, beforeResources + totalDelta);
-    const crewPenalty = Math.min(crewOnlyTiedHighest, afterMain);
+    const crewPenalty = (room.crewRecoveryCostEnabled !== false)
+      ? Math.min(crewOnlyTiedHighest, afterMain) : 0;
     player.resources = afterMain - crewPenalty;
     totalDelta = player.resources - beforeResources; // actual net change for display
     playerResults.push({ name, zoneResults, totalDelta, newResources: player.resources, newHeat: player.heat });
   }
 
-  // Heat penalty: applies at the START of rounds 2–4
-  // (i.e., after resolving rounds 1–3, before advancing)
+  // Heat penalty: applies between rounds — players at 0 resources gain 1 heat.
+  // At this point room.round is still the round that just resolved (1–4).
+  // We skip round 4 because the game ends immediately after; there is no
+  // next round for the penalty to matter, and determineWinners uses the
+  // final resource counts directly.
   const heatPenalties = [];
   if (room.round < 4) {
     for (const player of room.players.values()) {
@@ -212,7 +228,9 @@ function resolveRound(room) {
 
   if (room.round >= 4) {
     room.phase = 'end';
-    return { resolveData, gameOver: true, winners: determineWinners([...room.players.values()]) };
+    const winners = determineWinners([...room.players.values()]);
+    room.lastWinners = winners;
+    return { resolveData, gameOver: true, winners };
   }
 
   room.round += 1;
@@ -281,12 +299,12 @@ function startAllocationTimer(room, code) {
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  socket.on('create_room', ({ playerName, password, preferredCode }) => {
+  socket.on('create_room', ({ playerName, password, preferredCode, icon, homeTurf }) => {
     const name = (playerName || '').trim().slice(0, 20);
     if (!name) { socket.emit('error', { message: 'Name required' }); return; }
 
     const preferred = (preferredCode || '').toUpperCase().trim();
-    const code = (preferred.length === 4 && !rooms.has(preferred)) ? preferred : generateRoomCode();
+    const code = (VALID_CODE_RE.test(preferred) && !rooms.has(preferred)) ? preferred : generateRoomCode();
     const room = {
       code,
       phase: 'lobby',
@@ -301,15 +319,18 @@ io.on('connection', (socket) => {
       timerDuration: 180, // seconds
       timerHandle: null,
       timerEndAt: null,
+      homeTurfEnabled: false,
+      crewRecoveryCostEnabled: true,
     };
-    room.players.set(name, createPlayer(socket.id, name));
+    const assignedIcon = PLAYER_ICONS.includes(icon) ? icon : PLAYER_ICONS[0];
+    room.players.set(name, createPlayer(socket.id, name, assignedIcon, homeTurf || 'docks'));
     rooms.set(code, room);
     socket.join(code);
 
     socket.emit('room_joined', { roomCode: code, myName: name, state: getPublicState(room) });
   });
 
-  socket.on('join_room', ({ roomCode, playerName, password, passwordRetry }) => {
+  socket.on('join_room', ({ roomCode, playerName, password, passwordRetry, icon, homeTurf }) => {
     const code = (roomCode || '').toUpperCase().trim();
     const name = (playerName || '').trim().slice(0, 20);
     if (!name) { socket.emit('error', { message: 'Name required' }); return; }
@@ -333,6 +354,7 @@ io.on('connection', (socket) => {
         state: getPublicState(room),
         hasSubmitted,
         lastResolveData: room.lastResolveData,
+        lastWinners: room.lastWinners || null,
       });
       io.to(code).emit('player_joined', { name, state: getPublicState(room) });
       return;
@@ -352,7 +374,11 @@ io.on('connection', (socket) => {
       }
     }
 
-    room.players.set(name, createPlayer(socket.id, name));
+    const takenIcons = [...room.players.values()].map(p => p.icon);
+    const assignedIcon2 = (PLAYER_ICONS.includes(icon) && !takenIcons.includes(icon))
+      ? icon
+      : PLAYER_ICONS.find(i => !takenIcons.includes(i)) || PLAYER_ICONS[0];
+    room.players.set(name, createPlayer(socket.id, name, assignedIcon2, homeTurf || 'docks'));
     socket.join(code);
 
     socket.emit('room_joined', { roomCode: code, myName: name, state: getPublicState(room) });
@@ -385,6 +411,24 @@ io.on('connection', (socket) => {
       timerEnabled: room.timerEnabled,
       timerDuration: room.timerDuration,
     });
+  });
+
+  socket.on('set_home_turf_enabled', ({ roomCode, enabled }) => {
+    const room = rooms.get((roomCode || '').toUpperCase().trim());
+    if (!room || room.phase !== 'lobby') return;
+    const player = findPlayerBySocket(room, socket.id);
+    if (!player || player.name !== room.hostName) return;
+    room.homeTurfEnabled = !!enabled;
+    io.to(roomCode).emit('home_turf_setting_changed', { homeTurfEnabled: room.homeTurfEnabled });
+  });
+
+  socket.on('set_crew_recovery_cost', ({ roomCode, enabled }) => {
+    const room = rooms.get((roomCode || '').toUpperCase().trim());
+    if (!room || room.phase !== 'lobby') return;
+    const player = findPlayerBySocket(room, socket.id);
+    if (!player || player.name !== room.hostName) return;
+    room.crewRecoveryCostEnabled = !!enabled;
+    io.to(roomCode).emit('crew_recovery_cost_changed', { crewRecoveryCostEnabled: room.crewRecoveryCostEnabled });
   });
 
   socket.on('ready_for_next', ({ roomCode }) => {
@@ -452,6 +496,7 @@ io.on('connection', (socket) => {
 
     if (target.socketId) io.to(target.socketId).emit('kicked', { message: 'You were removed by the host' });
     room.players.delete(playerName);
+    transferHostIfNeeded(room, playerName);
     afterPlayerRemoved(room, roomCode, playerName);
     if (rooms.has(roomCode)) {
       io.to(roomCode).emit('player_left', { name: playerName, state: getPublicState(room) });
@@ -477,19 +522,16 @@ io.on('connection', (socket) => {
       // During active game: keep seat but mark disconnected so they can rejoin
       player.connected = false;
       socket.leave(code);
-      room.pendingAllocations.delete(name);
-      room.readyPlayers.delete(name);
-      transferHostIfNeeded(room, name);
       io.to(code).emit('player_left', { name, state: getPublicState(room) });
       socket.emit('left_room');
-      // Check if remaining connected players can advance
+      // afterPlayerRemoved handles pendingAllocations, readyPlayers, transferHostIfNeeded, resolveAllIfReady
       afterPlayerRemoved(room, code, name);
       return;
     }
 
     room.players.delete(name);
     socket.leave(code);
-
+    transferHostIfNeeded(room, name);
     afterPlayerRemoved(room, code, name);
 
     if (!rooms.has(code)) {
@@ -535,19 +577,44 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('game_reset', { state: getPublicState(room) });
   });
 
+  socket.on('set_icon', ({ roomCode, icon }) => {
+    const room = rooms.get((roomCode || '').toUpperCase().trim());
+    if (!room || room.phase !== 'lobby') return;
+    const player = findPlayerBySocket(room, socket.id);
+    if (!player) return;
+    if (!PLAYER_ICONS.includes(icon)) return;
+    const taken = [...room.players.values()].some(p => p.name !== player.name && p.icon === icon);
+    if (taken) { socket.emit('icon_taken', {}); return; }
+    player.icon = icon;
+    io.to(roomCode).emit('lobby_update', { state: getPublicState(room) });
+  });
+
+  socket.on('set_turf', ({ roomCode, homeTurf }) => {
+    const room = rooms.get((roomCode || '').toUpperCase().trim());
+    if (!room || room.phase !== 'lobby') return;
+    const player = findPlayerBySocket(room, socket.id);
+    if (!player) return;
+    if (!['docks', 'strip', 'slums'].includes(homeTurf)) return;
+    player.homeTurf = homeTurf;
+    io.to(roomCode).emit('lobby_update', { state: getPublicState(room) });
+  });
+
   socket.on('disconnect', () => {
     for (const room of rooms.values()) {
       const player = findPlayerBySocket(room, socket.id);
       if (player) {
-        player.connected = false;
-
-        // Transfer host if host disconnected during lobby
-        if (player.name === room.hostName && room.phase === 'lobby') {
-          const nextHost = [...room.players.values()].find(p => p.connected && p.name !== player.name);
-          if (nextHost) room.hostName = nextHost.name;
+        const name = player.name;
+        if (room.phase === 'lobby') {
+          // In the lobby, fully remove the player so the seat is freed immediately.
+          // (Ghost seats block same-name rejoin and confuse the host roster.)
+          room.players.delete(name);
+          transferHostIfNeeded(room, name);
+        } else {
+          // In an active game, keep the seat so the player can reconnect mid-game.
+          player.connected = false;
         }
-
-        io.to(room.code).emit('player_left', { name: player.name, state: getPublicState(room) });
+        io.to(room.code).emit('player_left', { name, state: getPublicState(room) });
+        if (rooms.has(room.code)) afterPlayerRemoved(room, room.code, name);
         break;
       }
     }

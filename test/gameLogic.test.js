@@ -1,6 +1,6 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('../lib/gameLogic');
+const { aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners, ZONE_TURF } = require('../lib/gameLogic');
 
 // ─── aggregateZones ────────────────────────────────────────────────────────────
 
@@ -72,18 +72,18 @@ describe('zoneDelta', () => {
     assert.equal(zoneDelta(1, 5, 'middle', 'all_different'), 1);
   });
 
-  test('lowest: triple — net = 3 + 2*res', () => {
-    assert.equal(zoneDelta(1, 0, 'lowest', 'all_different'), 3);
-    assert.equal(zoneDelta(1, 2, 'lowest', 'all_different'), 7);
+  test('lowest: gain = 2 × placement (triple means end = 3P, gain = 2P)', () => {
+    assert.equal(zoneDelta(1, 0, 'lowest', 'all_different'), 2);  // 2×1 = 2
+    assert.equal(zoneDelta(1, 2, 'lowest', 'all_different'), 6);  // 2×3 = 6
   });
 
   test('lone_lowest behaves like lowest', () => {
-    assert.equal(zoneDelta(1, 1, 'lone_lowest', 'two_tied_highest'), 5);
+    assert.equal(zoneDelta(1, 1, 'lone_lowest', 'two_tied_highest'), 4);  // 2×2 = 4
   });
 
-  test('tied_lowest: double — net = 2 + res', () => {
-    assert.equal(zoneDelta(1, 0, 'tied_lowest', 'two_tied_lowest'), 2);
-    assert.equal(zoneDelta(1, 3, 'tied_lowest', 'two_tied_lowest'), 5);
+  test('tied_lowest: gain = placement (double means end = 2P, gain = P)', () => {
+    assert.equal(zoneDelta(1, 0, 'tied_lowest', 'two_tied_lowest'), 1);  // 1×1 = 1
+    assert.equal(zoneDelta(1, 3, 'tied_lowest', 'two_tied_lowest'), 4);  // 1×4 = 4
   });
 
   test('tied_highest: halve — net = floor((1+res)/2) - res', () => {
@@ -103,6 +103,40 @@ describe('zoneDelta', () => {
 
   test('all_tied crew-only: 0 (safe)', () => {
     assert.equal(zoneDelta(1, 0, 'tied', 'all_tied'), 0);
+  });
+
+  test('home turf bonus: adds +1 to positive gains', () => {
+    // lowest gains 2*(1+0)=2, home turf makes it 3
+    assert.equal(zoneDelta(1, 0, 'lowest', 'all_different', true), 3);
+    // middle gains 1, home turf makes it 2
+    assert.equal(zoneDelta(1, 0, 'middle', 'all_different', true), 2);
+    // tied_lowest gains 1+0=1, home turf makes it 2
+    assert.equal(zoneDelta(1, 0, 'tied_lowest', 'two_tied_lowest', true), 2);
+  });
+
+  test('home turf bonus: no bonus on negative or zero results', () => {
+    // highest loses -(0+1)=-1, no bonus
+    assert.equal(zoneDelta(1, 0, 'highest', 'all_different', true), -1);
+    // tied_highest crew-only returns 0, no bonus
+    assert.equal(zoneDelta(1, 0, 'tied_highest', 'two_tied_highest', true), 0);
+    // all_tied crew-only returns 0, no bonus
+    assert.equal(zoneDelta(1, 0, 'tied', 'all_tied', true), 0);
+  });
+
+  test('home turf bonus: isHomeTurf=false behaves identically to default', () => {
+    assert.equal(zoneDelta(1, 0, 'lowest', 'all_different', false), zoneDelta(1, 0, 'lowest', 'all_different'));
+    assert.equal(zoneDelta(1, 2, 'highest', 'all_different', false), zoneDelta(1, 2, 'highest', 'all_different'));
+  });
+
+  // Crew recovery cost: zoneDelta returns 0 for tied_highest crew-only.
+  // The server then subtracts an additional 1 Ⓡ (crewPenalty) after applying all deltas.
+  // These tests document the boundary values to catch formula regressions.
+  test('tied_highest res=1: floor(2/2)-1 = 0 — break-even, no net gain', () => {
+    assert.equal(zoneDelta(1, 1, 'tied_highest', 'two_tied_highest'), 0);
+  });
+
+  test('tied_highest res=3: floor(4/2)-3 = -1', () => {
+    assert.equal(zoneDelta(1, 3, 'tied_highest', 'two_tied_highest'), -1);
   });
 });
 
@@ -204,5 +238,25 @@ describe('determineWinners', () => {
     assert.ok(winners.includes('Alice'));
     assert.ok(winners.includes('Carol'));
     assert.ok(!winners.includes('Bob'));
+  });
+
+  // Heat penalty scenario: a player who hit 0 resources during an earlier round
+  // receives +1 heat. This test confirms that the extra heat correctly breaks ties.
+  test('heat penalty recipient loses tiebreaker to clean player', () => {
+    const players = [
+      { name: 'Alice', resources: 3, heat: 1 }, // gained heat from hitting 0 in round 1
+      { name: 'Bob',   resources: 3, heat: 0 }, // never hit 0
+    ];
+    assert.deepEqual(determineWinners(players), ['Bob']);
+  });
+
+  test('player with zero resources is still eligible to win if opponent also has zero', () => {
+    const players = [
+      { name: 'Alice', resources: 0, heat: 2 },
+      { name: 'Bob',   resources: 0, heat: 2 },
+    ];
+    const winners = determineWinners(players);
+    assert.equal(winners.length, 2);
+    assert.ok(winners.includes('Alice') && winners.includes('Bob'));
   });
 });

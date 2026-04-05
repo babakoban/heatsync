@@ -2,18 +2,64 @@
   "name": "heatsync",
   "version": "1.0.0",
   "description": "HeatSync - multiplayer resource allocation game",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "PORT=3002 node --watch server.js",
     "test": "node --test test/*.test.js",
-    "playtest": "concurrently --kill-others -n server,ngrok -c cyan,yellow \"node server.js\" \"ngrok http 3000\""
+    "build-html": "node scripts/build-html.js",
+    "playtest": "node scripts/playtest.js",
+    "electron": "electron .",
+    "dist-mac": "electron-builder --mac",
+    "dist-win": "electron-builder --win"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "peerjs": "^1.5.5",
     "socket.io": "^4.7.2"
   },
+  "overrides": {
+    "path-to-regexp": "0.1.13"
+  },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "electron": "^41.1.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.heatsync.app",
+    "productName": "HeatSync",
+    "files": [
+      "electron/**/*",
+      "electron-app/**/*",
+      "p2p/**/*",
+      "lib/**/*",
+      "public/style.css",
+      "public/city-map.svg",
+      "public/shared.js",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.games",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }
