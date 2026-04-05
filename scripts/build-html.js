@@ -38,7 +38,9 @@ function build(template, platform) {
   // Collapse runs of 3+ blank lines left by removed blocks down to 1
   out = out.replace(/\n{3,}/g, '\n\n');
 
-  return HEADER(platform) + out.trimStart();
+  // Place the header comment after <!DOCTYPE html> so the doctype stays first
+  out = out.trimStart().replace('<!DOCTYPE html>\n', `<!DOCTYPE html>\n${HEADER(platform)}`);
+  return out;
 }
 
 const template = fs.readFileSync(TEMPLATE, 'utf8');
