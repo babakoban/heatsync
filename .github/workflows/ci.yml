@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Pure game-logic unit tests ─────────────────────────────────────
+  unit-tests:
+    name: Game Logic (unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run game-logic unit tests
+        run: node --test test/gameLogic.test.js
+
+  # ── Job 2: Server socket.io integration tests ──────────────────────────────
+  server-tests:
+    name: Server Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run server integration tests
+        run: node --test test/server.test.js
+
+  # ── Job 3: HTML structure / build-consistency tests ────────────────────────
+  html-tests:
+    name: HTML Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run HTML structure tests
+        run: node --test test/html.test.js
