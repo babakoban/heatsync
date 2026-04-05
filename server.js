@@ -623,5 +623,9 @@ io.on('connection', (socket) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => console.log(`HeatSync running at http://localhost:${PORT}`));
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  httpServer.listen(PORT, () => console.log(`HeatSync running at http://localhost:${PORT}`));
+}
+
+module.exports = { httpServer, io };
