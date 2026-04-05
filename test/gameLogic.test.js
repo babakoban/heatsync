@@ -1,21 +1,21 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners, ZONE_TURF, PLAYER_ICONS, ZONES } = require('../lib/gameLogic');
+const { aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners, PLAYER_ICONS, ZONES } = require('../lib/gameLogic');
 
 // ─── aggregateZones ────────────────────────────────────────────────────────────
 
 describe('aggregateZones', () => {
   test('sums crew + resources across all players per zone', () => {
     const allocs = new Map([
-      ['Alice', { east: { crew: 1, resources: 2 }, west: { crew: 1, resources: 0 }, downtown: { crew: 0, resources: 0 } }],
-      ['Bob',   { east: { crew: 0, resources: 0 }, west: { crew: 1, resources: 1 }, downtown: { crew: 1, resources: 3 } }],
+      ['Alice', { docks: { crew: 1, resources: 2 }, strip: { crew: 1, resources: 0 }, slums: { crew: 0, resources: 0 } }],
+      ['Bob',   { docks: { crew: 0, resources: 0 }, strip: { crew: 1, resources: 1 }, slums: { crew: 1, resources: 3 } }],
     ]);
     const totals = aggregateZones(allocs);
-    assert.deepEqual(totals, { east: 3, west: 3, downtown: 4 });
+    assert.deepEqual(totals, { docks: 3, strip: 3, slums: 4 });
   });
 
   test('returns zeros for empty allocations', () => {
-    assert.deepEqual(aggregateZones(new Map()), { east: 0, west: 0, downtown: 0 });
+    assert.deepEqual(aggregateZones(new Map()), { docks: 0, strip: 0, slums: 0 });
   });
 });
 
@@ -23,35 +23,35 @@ describe('aggregateZones', () => {
 
 describe('classifyZones', () => {
   test('all different — assigns lowest/middle/highest correctly', () => {
-    const result = classifyZones({ east: 1, west: 3, downtown: 5 });
+    const result = classifyZones({ docks: 1, strip: 3, slums: 5 });
     assert.equal(result.outcome, 'all_different');
-    assert.equal(result.roles.east, 'lowest');
-    assert.equal(result.roles.west, 'middle');
-    assert.equal(result.roles.downtown, 'highest');
+    assert.equal(result.roles.docks, 'lowest');
+    assert.equal(result.roles.strip, 'middle');
+    assert.equal(result.roles.slums, 'highest');
   });
 
   test('all tied', () => {
-    const result = classifyZones({ east: 4, west: 4, downtown: 4 });
+    const result = classifyZones({ docks: 4, strip: 4, slums: 4 });
     assert.equal(result.outcome, 'all_tied');
-    assert.equal(result.roles.east, 'tied');
-    assert.equal(result.roles.west, 'tied');
-    assert.equal(result.roles.downtown, 'tied');
+    assert.equal(result.roles.docks, 'tied');
+    assert.equal(result.roles.strip, 'tied');
+    assert.equal(result.roles.slums, 'tied');
   });
 
   test('two tied for lowest', () => {
-    const result = classifyZones({ east: 2, west: 2, downtown: 6 });
+    const result = classifyZones({ docks: 2, strip: 2, slums: 6 });
     assert.equal(result.outcome, 'two_tied_lowest');
-    assert.equal(result.roles.east, 'tied_lowest');
-    assert.equal(result.roles.west, 'tied_lowest');
-    assert.equal(result.roles.downtown, 'lone_highest');
+    assert.equal(result.roles.docks, 'tied_lowest');
+    assert.equal(result.roles.strip, 'tied_lowest');
+    assert.equal(result.roles.slums, 'lone_highest');
   });
 
   test('two tied for highest', () => {
-    const result = classifyZones({ east: 5, west: 5, downtown: 1 });
+    const result = classifyZones({ docks: 5, strip: 5, slums: 1 });
     assert.equal(result.outcome, 'two_tied_highest');
-    assert.equal(result.roles.east, 'tied_highest');
-    assert.equal(result.roles.west, 'tied_highest');
-    assert.equal(result.roles.downtown, 'lone_lowest');
+    assert.equal(result.roles.docks, 'tied_highest');
+    assert.equal(result.roles.strip, 'tied_highest');
+    assert.equal(result.roles.slums, 'lone_lowest');
   });
 });
 
@@ -146,9 +146,9 @@ describe('validateAllocation', () => {
   const player = { resources: 2 };
 
   const valid = {
-    east:     { crew: 1, resources: 1 },
-    west:     { crew: 1, resources: 1 },
-    downtown: { crew: 0, resources: 0 },
+    docks: { crew: 1, resources: 1 },
+    strip: { crew: 1, resources: 1 },
+    slums: { crew: 0, resources: 0 },
   };
 
   test('valid allocation returns null', () => {
@@ -157,9 +157,9 @@ describe('validateAllocation', () => {
 
   test('crew-only (0 resources) is valid when player has none', () => {
     const alloc = {
-      east:     { crew: 1, resources: 0 },
-      west:     { crew: 1, resources: 0 },
-      downtown: { crew: 0, resources: 0 },
+      docks: { crew: 1, resources: 0 },
+      strip: { crew: 1, resources: 0 },
+      slums: { crew: 0, resources: 0 },
     };
     assert.equal(validateAllocation(alloc, { resources: 0 }), null);
   });
@@ -169,28 +169,28 @@ describe('validateAllocation', () => {
   });
 
   test('rejects wrong crew count (1 zone)', () => {
-    const alloc = { east: { crew: 1, resources: 2 }, west: { crew: 0, resources: 0 }, downtown: { crew: 0, resources: 0 } };
+    const alloc = { docks: { crew: 1, resources: 2 }, strip: { crew: 0, resources: 0 }, slums: { crew: 0, resources: 0 } };
     assert.equal(validateAllocation(alloc, player), 'Must assign crew to exactly 2 zones');
   });
 
   test('rejects wrong crew count (3 zones)', () => {
-    const alloc = { east: { crew: 1, resources: 1 }, west: { crew: 1, resources: 1 }, downtown: { crew: 1, resources: 0 } };
+    const alloc = { docks: { crew: 1, resources: 1 }, strip: { crew: 1, resources: 1 }, slums: { crew: 1, resources: 0 } };
     assert.equal(validateAllocation(alloc, { resources: 2 }), 'Must assign crew to exactly 2 zones');
   });
 
   test('rejects resources not matching player total', () => {
-    const alloc = { east: { crew: 1, resources: 3 }, west: { crew: 1, resources: 0 }, downtown: { crew: 0, resources: 0 } };
+    const alloc = { docks: { crew: 1, resources: 3 }, strip: { crew: 1, resources: 0 }, slums: { crew: 0, resources: 0 } };
     assert.equal(validateAllocation(alloc, player), 'Must allocate all your resources');
   });
 
   test('rejects resources without crew', () => {
-    const alloc = { east: { crew: 1, resources: 2 }, west: { crew: 0, resources: 0 }, downtown: { crew: 0, resources: 0 } };
+    const alloc = { docks: { crew: 1, resources: 2 }, strip: { crew: 0, resources: 0 }, slums: { crew: 0, resources: 0 } };
     // Only 1 crew — fails crew count check first
     assert.ok(validateAllocation(alloc, player));
   });
 
   test('rejects negative resources', () => {
-    const alloc = { east: { crew: 1, resources: -1 }, west: { crew: 1, resources: 3 }, downtown: { crew: 0, resources: 0 } };
+    const alloc = { docks: { crew: 1, resources: -1 }, strip: { crew: 1, resources: 3 }, slums: { crew: 0, resources: 0 } };
     assert.equal(validateAllocation(alloc, player), 'Invalid resources');
   });
 });
@@ -266,45 +266,45 @@ describe('determineWinners', () => {
 describe('aggregateZones (additional)', () => {
   test('single player — crew and resources counted separately', () => {
     const allocs = new Map([
-      ['Alice', { east: { crew: 1, resources: 3 }, west: { crew: 1, resources: 0 }, downtown: { crew: 0, resources: 0 } }],
+      ['Alice', { docks: { crew: 1, resources: 3 }, strip: { crew: 1, resources: 0 }, slums: { crew: 0, resources: 0 } }],
     ]);
-    assert.deepEqual(aggregateZones(allocs), { east: 4, west: 1, downtown: 0 });
+    assert.deepEqual(aggregateZones(allocs), { docks: 4, strip: 1, slums: 0 });
   });
 
   test('three players with different zone combos', () => {
     const allocs = new Map([
-      ['A', { east: { crew: 1, resources: 2 }, west: { crew: 0, resources: 0 }, downtown: { crew: 1, resources: 1 } }],
-      ['B', { east: { crew: 0, resources: 0 }, west: { crew: 1, resources: 3 }, downtown: { crew: 1, resources: 0 } }],
-      ['C', { east: { crew: 1, resources: 1 }, west: { crew: 1, resources: 2 }, downtown: { crew: 0, resources: 0 } }],
+      ['A', { docks: { crew: 1, resources: 2 }, strip: { crew: 0, resources: 0 }, slums: { crew: 1, resources: 1 } }],
+      ['B', { docks: { crew: 0, resources: 0 }, strip: { crew: 1, resources: 3 }, slums: { crew: 1, resources: 0 } }],
+      ['C', { docks: { crew: 1, resources: 1 }, strip: { crew: 1, resources: 2 }, slums: { crew: 0, resources: 0 } }],
     ]);
     const totals = aggregateZones(allocs);
-    assert.equal(totals.east, 5);     // A:(1+2)=3, C:(1+1)=2 → 5
-    assert.equal(totals.west, 7);     // B:(1+3)=4, C:(1+2)=3 → 7
-    assert.equal(totals.downtown, 3); // A:(1+1)=2, B:(1+0)=1 → 3
+    assert.equal(totals.docks, 5);  // A:(1+2)=3, C:(1+1)=2 → 5
+    assert.equal(totals.strip, 7);  // B:(1+3)=4, C:(1+2)=3 → 7
+    assert.equal(totals.slums, 3);  // A:(1+1)=2, B:(1+0)=1 → 3
   });
 
   test('all crew-only allocations yield 1 per zone per player', () => {
     const allocs = new Map([
-      ['A', { east: { crew: 1, resources: 0 }, west: { crew: 1, resources: 0 }, downtown: { crew: 0, resources: 0 } }],
-      ['B', { east: { crew: 0, resources: 0 }, west: { crew: 1, resources: 0 }, downtown: { crew: 1, resources: 0 } }],
+      ['A', { docks: { crew: 1, resources: 0 }, strip: { crew: 1, resources: 0 }, slums: { crew: 0, resources: 0 } }],
+      ['B', { docks: { crew: 0, resources: 0 }, strip: { crew: 1, resources: 0 }, slums: { crew: 1, resources: 0 } }],
     ]);
     const totals = aggregateZones(allocs);
-    assert.equal(totals.east, 1);
-    assert.equal(totals.west, 2);
-    assert.equal(totals.downtown, 1);
+    assert.equal(totals.docks, 1);
+    assert.equal(totals.strip, 2);
+    assert.equal(totals.slums, 1);
   });
 
   test('six players all stacking same zone', () => {
     const allocs = new Map(
       ['A','B','C','D','E','F'].map(n => [
         n,
-        { east: { crew: 1, resources: 2 }, west: { crew: 1, resources: 0 }, downtown: { crew: 0, resources: 0 } },
+        { docks: { crew: 1, resources: 2 }, strip: { crew: 1, resources: 0 }, slums: { crew: 0, resources: 0 } },
       ])
     );
     const totals = aggregateZones(allocs);
-    assert.equal(totals.east, 18);   // 6 × (1+2)
-    assert.equal(totals.west, 6);    // 6 × 1
-    assert.equal(totals.downtown, 0);
+    assert.equal(totals.docks, 18); // 6 × (1+2)
+    assert.equal(totals.strip, 6);  // 6 × 1
+    assert.equal(totals.slums, 0);
   });
 });
 
@@ -312,42 +312,42 @@ describe('aggregateZones (additional)', () => {
 
 describe('classifyZones (additional)', () => {
   test('all zeros → all_tied', () => {
-    const result = classifyZones({ east: 0, west: 0, downtown: 0 });
+    const result = classifyZones({ docks: 0, strip: 0, slums: 0 });
     assert.equal(result.outcome, 'all_tied');
     assert.ok(Object.values(result.roles).every(r => r === 'tied'));
   });
 
   test('two tied for highest with large values', () => {
-    const result = classifyZones({ east: 10, west: 10, downtown: 1 });
+    const result = classifyZones({ docks: 10, strip: 10, slums: 1 });
     assert.equal(result.outcome, 'two_tied_highest');
-    assert.equal(result.roles.east, 'tied_highest');
-    assert.equal(result.roles.west, 'tied_highest');
-    assert.equal(result.roles.downtown, 'lone_lowest');
+    assert.equal(result.roles.docks, 'tied_highest');
+    assert.equal(result.roles.strip, 'tied_highest');
+    assert.equal(result.roles.slums, 'lone_lowest');
   });
 
   test('two tied for lowest with zero', () => {
-    const result = classifyZones({ east: 0, west: 0, downtown: 5 });
+    const result = classifyZones({ docks: 0, strip: 0, slums: 5 });
     assert.equal(result.outcome, 'two_tied_lowest');
-    assert.equal(result.roles.east, 'tied_lowest');
-    assert.equal(result.roles.west, 'tied_lowest');
-    assert.equal(result.roles.downtown, 'lone_highest');
+    assert.equal(result.roles.docks, 'tied_lowest');
+    assert.equal(result.roles.strip, 'tied_lowest');
+    assert.equal(result.roles.slums, 'lone_highest');
   });
 
   test('all_different with reversed ordering', () => {
-    const result = classifyZones({ east: 9, west: 1, downtown: 5 });
+    const result = classifyZones({ docks: 9, strip: 1, slums: 5 });
     assert.equal(result.outcome, 'all_different');
-    assert.equal(result.roles.west, 'lowest');
-    assert.equal(result.roles.downtown, 'middle');
-    assert.equal(result.roles.east, 'highest');
+    assert.equal(result.roles.strip, 'lowest');
+    assert.equal(result.roles.slums, 'middle');
+    assert.equal(result.roles.docks, 'highest');
   });
 
-  test('downtown is the lone zone regardless of which two tie', () => {
-    // east and downtown tie for lowest, west is highest
-    const result = classifyZones({ east: 2, west: 8, downtown: 2 });
+  test('slums is the lone zone regardless of which two tie', () => {
+    // docks and slums tie for lowest, strip is highest
+    const result = classifyZones({ docks: 2, strip: 8, slums: 2 });
     assert.equal(result.outcome, 'two_tied_lowest');
-    assert.equal(result.roles.east, 'tied_lowest');
-    assert.equal(result.roles.downtown, 'tied_lowest');
-    assert.equal(result.roles.west, 'lone_highest');
+    assert.equal(result.roles.docks, 'tied_lowest');
+    assert.equal(result.roles.slums, 'tied_lowest');
+    assert.equal(result.roles.strip, 'lone_highest');
   });
 });
 
@@ -415,52 +415,52 @@ describe('validateAllocation (additional)', () => {
   });
 
   test('rejects missing zone key', () => {
-    // downtown missing
-    const alloc = { east: { crew: 1, resources: 0 }, west: { crew: 1, resources: 0 } };
+    // slums missing
+    const alloc = { docks: { crew: 1, resources: 0 }, strip: { crew: 1, resources: 0 } };
     assert.ok(validateAllocation(alloc, { resources: 0 }));
   });
 
   test('rejects resources placed in zone without crew', () => {
     const alloc = {
-      east:     { crew: 1, resources: 1 },
-      west:     { crew: 1, resources: 0 },
-      downtown: { crew: 0, resources: 1 }, // resources but no crew!
+      docks: { crew: 1, resources: 1 },
+      strip: { crew: 1, resources: 0 },
+      slums: { crew: 0, resources: 1 }, // resources but no crew!
     };
     assert.equal(validateAllocation(alloc, { resources: 2 }), 'Cannot place resources without crew');
   });
 
   test('accepts max resources split across two zones', () => {
     const alloc = {
-      east:     { crew: 1, resources: 8 },
-      west:     { crew: 1, resources: 2 },
-      downtown: { crew: 0, resources: 0 },
+      docks: { crew: 1, resources: 8 },
+      strip: { crew: 1, resources: 2 },
+      slums: { crew: 0, resources: 0 },
     };
     assert.equal(validateAllocation(alloc, { resources: 10 }), null);
   });
 
   test('rejects crew value of 2 (must be 0 or 1)', () => {
     const alloc = {
-      east:     { crew: 2, resources: 0 },
-      west:     { crew: 0, resources: 0 },
-      downtown: { crew: 0, resources: 0 },
+      docks: { crew: 2, resources: 0 },
+      strip: { crew: 0, resources: 0 },
+      slums: { crew: 0, resources: 0 },
     };
     assert.ok(validateAllocation(alloc, { resources: 0 }));
   });
 
   test('rejects fractional resources', () => {
     const alloc = {
-      east:     { crew: 1, resources: 0.5 },
-      west:     { crew: 1, resources: 0.5 },
-      downtown: { crew: 0, resources: 0 },
+      docks: { crew: 1, resources: 0.5 },
+      strip: { crew: 1, resources: 0.5 },
+      slums: { crew: 0, resources: 0 },
     };
     assert.ok(validateAllocation(alloc, { resources: 1 }));
   });
 
   test('rejects submitting more resources than player has', () => {
     const alloc = {
-      east:     { crew: 1, resources: 5 },
-      west:     { crew: 1, resources: 0 },
-      downtown: { crew: 0, resources: 0 },
+      docks: { crew: 1, resources: 5 },
+      strip: { crew: 1, resources: 0 },
+      slums: { crew: 0, resources: 0 },
     };
     assert.equal(validateAllocation(alloc, { resources: 3 }), 'Must allocate all your resources');
   });
@@ -516,18 +516,6 @@ describe('determineWinners (additional)', () => {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-describe('ZONE_TURF constant', () => {
-  test('maps all three zones to their turf names', () => {
-    assert.equal(ZONE_TURF.west, 'docks');
-    assert.equal(ZONE_TURF.downtown, 'strip');
-    assert.equal(ZONE_TURF.east, 'slums');
-  });
-
-  test('covers exactly the three game zones', () => {
-    assert.deepEqual(Object.keys(ZONE_TURF).sort(), ['downtown', 'east', 'west']);
-  });
-});
-
 describe('PLAYER_ICONS constant', () => {
   test('contains exactly 8 icons', () => {
     assert.equal(PLAYER_ICONS.length, 8);
@@ -539,7 +527,40 @@ describe('PLAYER_ICONS constant', () => {
 });
 
 describe('ZONES constant', () => {
-  test('contains east, west, and downtown', () => {
-    assert.deepEqual([...ZONES].sort(), ['downtown', 'east', 'west']);
+  test('contains docks, strip, and slums', () => {
+    assert.deepEqual([...ZONES].sort(), ['docks', 'slums', 'strip']);
+  });
+});
+
+// ─── crewRecoveryCostEnabled ──────────────────────────────────────────────────
+
+describe('zoneDelta crewRecoveryCostEnabled=false', () => {
+  test('highest crew-only: returns 0 (no recovery cost)', () => {
+    assert.equal(zoneDelta(1, 0, 'highest', 'all_different', false, false), 0);
+  });
+
+  test('highest with resources: returns -res only (no +1 crew cost)', () => {
+    assert.equal(zoneDelta(1, 2, 'highest', 'all_different', false, false), -2);
+    assert.equal(zoneDelta(1, 3, 'highest', 'all_different', false, false), -3);
+  });
+
+  test('lone_highest crew-only: returns 0', () => {
+    assert.equal(zoneDelta(1, 0, 'lone_highest', 'two_tied_lowest', false, false), 0);
+  });
+
+  test('lone_highest with resources: returns -res', () => {
+    assert.equal(zoneDelta(1, 4, 'lone_highest', 'two_tied_lowest', false, false), -4);
+  });
+
+  test('crewRecoveryCostEnabled=true (default) still charges +1', () => {
+    assert.equal(zoneDelta(1, 0, 'highest', 'all_different', false, true), -1);
+    assert.equal(zoneDelta(1, 2, 'highest', 'all_different', false, true), -3);
+  });
+
+  test('other roles unaffected by crewRecoveryCostEnabled', () => {
+    // middle, lowest, tied_lowest, tied_highest should be the same regardless
+    assert.equal(zoneDelta(1, 0, 'middle',      'all_different',  false, false), 1);
+    assert.equal(zoneDelta(1, 2, 'lowest',      'all_different',  false, false), 6);
+    assert.equal(zoneDelta(1, 3, 'tied_lowest', 'two_tied_lowest',false, false), 4);
   });
 });

@@ -55,7 +55,7 @@ describe('template (views/game.html)', () => {
   }
 
   // ── Zone cards ──
-  for (const zone of ['east', 'west', 'downtown']) {
+  for (const zone of ['docks', 'strip', 'slums']) {
     test(`contains zone card data-zone="${zone}"`, () => {
       assert.ok(hasDataAttr(template, 'data-zone', zone), `Missing zone card for ${zone}`);
     });
@@ -143,7 +143,7 @@ describe('generated web HTML (public/index.html)', () => {
   });
 
   test('contains all three zone cards', () => {
-    for (const zone of ['east', 'west', 'downtown']) {
+    for (const zone of ['docks', 'strip', 'slums']) {
       assert.ok(hasDataAttr(webHtml, 'data-zone', zone), `Missing zone ${zone}`);
     }
   });
@@ -196,7 +196,7 @@ describe('generated electron HTML (electron-app/index.html)', () => {
   });
 
   test('contains all three zone cards', () => {
-    for (const zone of ['east', 'west', 'downtown']) {
+    for (const zone of ['docks', 'strip', 'slums']) {
       assert.ok(hasDataAttr(electronHtml, 'data-zone', zone));
     }
   });

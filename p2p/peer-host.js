@@ -4,10 +4,8 @@
 
 const EventEmitter = require('events');
 const {
-  ZONES, ZONE_TURF, PLAYER_ICONS, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners,
+  ZONES, CHARS, PLAYER_ICONS, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners,
 } = require('../lib/gameLogic');
-
-const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SAVED_STATE_KEY = 'heatsync_host_state';
 const STATE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min
 
@@ -181,8 +179,8 @@ class P2PHost extends EventEmitter {
         const { crew, resources: res } = alloc[zone];
         if (crew === 0 && res === 0) continue;
         const role = classification.roles[zone];
-        const isHomeTurf = r.homeTurfEnabled && ZONE_TURF[zone] === player.homeTurf;
-        const delta = zoneDelta(crew, res, role, classification.outcome, isHomeTurf);
+        const isHomeTurf = r.homeTurfEnabled && zone === player.homeTurf;
+        const delta = zoneDelta(crew, res, role, classification.outcome, isHomeTurf, r.crewRecoveryCostEnabled !== false);
         totalDelta += delta;
         if (role === 'tied_highest' && res === 0) crewOnlyTiedHighest++;
         const outcomeLabel = classification.outcome === 'all_tied'
@@ -385,6 +383,14 @@ class P2PHost extends EventEmitter {
     if (player?.name !== r.hostName) { this.sendError(conn, 'Only the host can start'); return; }
     if (r.players.size < 3) { this.sendError(conn, 'Need at least 3 players'); return; }
     r.readyPlayers.clear();
+
+    // Randomize home turf assignments when the setting is enabled
+    if (r.homeTurfEnabled) {
+      const players = [...r.players.values()];
+      const shuffled = [...ZONES].sort(() => Math.random() - 0.5);
+      players.forEach((p, i) => { p.homeTurf = shuffled[i % shuffled.length]; });
+    }
+
     r.phase = 'allocation';
     this.broadcast('phase_changed', { phase: 'allocation', state: this.getPublicState() });
     this.startAllocationTimer();

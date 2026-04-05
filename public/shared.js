@@ -3,22 +3,21 @@
 /* Electron: <script src="../public/shared.js"> before client-p2p.js           */
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
-const PLAYER_ICONS = ['☯','★','♠','♣','♥','♦','⛬','▲'];
-const ICON_COLORS  = {
+// Single dictionary: icon → colour. PLAYER_ICONS is derived so both stay in sync.
+const ICON_META = {
   '☯': '#9ca3af', '★': '#facc15', '♠': '#a855f7', '♣': '#15803d',
   '♥': '#ec4899', '♦': '#ef4444', '⛬': '#0891b2', '▲': '#fb923c',
 };
-const PLAYER_TURFS = ['docks', 'strip', 'slums'];
-const TURF_LABELS  = { docks: 'The Docks', strip: 'The Strip', slums: 'The Slums' };
+const PLAYER_ICONS = Object.keys(ICON_META);
+const ZONES        = ['docks', 'strip', 'slums'];
+const ZONE_LABELS  = { docks: 'The Docks', strip: 'The Strip', slums: 'The Slums' };
+const ZONE_SHORT   = { docks: 'Docks',     strip: 'Strip',     slums: 'Slums'     };
 const TURF_CLASS   = { docks: 'turf--docks', strip: 'turf--strip', slums: 'turf--slums' };
 const ROUND_COUNT  = 4;
 const MAX_LOBBY_SLOTS    = 6;
 const MIN_PLAYERS_TO_START = 3;
-const ZONE_KEYS          = ['east', 'downtown', 'west'];
-const ZONE_DISPLAY_ORDER = ['west', 'downtown', 'east'];
-const ZONE_NAMES  = { west: 'The Docks', downtown: 'The Strip', east: 'The Slums' };
-const ZONE_SHORT  = { west: 'Docks', downtown: 'Strip', east: 'Slums' };
-const CODE_CHARS  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Keep in sync with lib/gameLogic.js CHARS (browser can't require() Node modules)
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const HTP_SLIDE_COUNT = 7;
 const OUTCOME_LABELS = {
   all_different:   'One zone took all the heat — the others walked clean',
@@ -55,7 +54,7 @@ var htpCurrent = 0;
 
 const allocState = {
   selectedZones: new Set(),
-  resources: { east: 0, west: 0, downtown: 0 },
+  resources: { docks: 0, strip: 0, slums: 0 },
   myResources: 0,
 };
 
@@ -279,7 +278,7 @@ function renderZonePips(zone) {
   }
   el.innerHTML = parts.join('');
 }
-function refreshAllZonePips() { ZONE_KEYS.forEach(renderZonePips); }
+function refreshAllZonePips() { ZONES.forEach(renderZonePips); }
 
 /* ── Standings & result rows ─────────────────────────────────────────────── */
 function heatPipsHtml(heat) {
@@ -318,9 +317,9 @@ function renderResultRows(el, resolveData) {
   );
   const header = `<div class="rr-header">
     <span></span><span>Player</span>
-    <span class="rr-hdr-west">${ZONE_SHORT.west}</span>
-    <span class="rr-hdr-downtown">${ZONE_SHORT.downtown}</span>
-    <span class="rr-hdr-east">${ZONE_SHORT.east}</span>
+    <span class="rr-hdr-docks">${ZONE_SHORT.docks}</span>
+    <span class="rr-hdr-strip">${ZONE_SHORT.strip}</span>
+    <span class="rr-hdr-slums">${ZONE_SHORT.slums}</span>
     <span>±</span><span>Res</span><span class="rr-hdr-heat">Heat</span>
   </div>`;
   const rows = sortedResults.map((pr, idx) => {
@@ -330,7 +329,7 @@ function renderResultRows(el, resolveData) {
     const sign = pr.totalDelta > 0 ? `+${pr.totalDelta}` : `−${Math.abs(pr.totalDelta)}`;
     const cls = deltaClass(pr.totalDelta);
     const zoneMap = Object.fromEntries(pr.zoneResults.map(zr => [zr.zone, zr]));
-    const zoneCells = ZONE_DISPLAY_ORDER.map(zone => {
+    const zoneCells = ZONES.map(zone => {
       const zr = zoneMap[zone];
       if (!zr) return `<span class="rr-zone-cell rr-zone-cell--empty">—</span>`;
       const sent = zr.sent.crew + zr.sent.resources;
@@ -367,9 +366,9 @@ function renderLobbySlots(players, hostName) {
       const isMe  = p.name === state.myName;
       const turfOn = !!(state.gameState?.homeTurfEnabled);
       const turfSpan = (turfOn && p.homeTurf)
-        ? `<span class="lobby-slot-turf ${tc}${isMe ? ' picker-tap' : ''}"${isMe ? ' id="my-turf-display"' : ''}>${escHtml(TURF_LABELS[p.homeTurf] || p.homeTurf)}</span>`
+        ? `<span class="lobby-slot-turf ${tc}${isMe ? ' picker-tap' : ''}"${isMe ? ' id="my-turf-display"' : ''}>${escHtml(ZONE_LABELS[p.homeTurf] || p.homeTurf)}</span>`
         : `<span class="lobby-slot-turf"${isMe ? ' id="my-turf-display"' : ''} style="visibility:hidden">&nbsp;</span>`;
-      const shadowColor = ICON_COLORS[icon] || '#ffffff';
+      const shadowColor = ICON_META[icon] || '#ffffff';
       const shadow = `text-shadow:-0.5px 1px 1.25px ${shadowColor}cc,0.5px 1px 1.25px ${shadowColor}cc`;
       slotsHtml.push(`
         <div class="lobby-slot lobby-slot--filled${isMe ? ' lobby-slot--me' : ''}">
@@ -406,7 +405,7 @@ function updateLobbyPickerDisplay() {
   if (turfEl) {
     const turfOn = !!(state.gameState?.homeTurfEnabled);
     if (turfOn) {
-      turfEl.textContent = TURF_LABELS[state.playerTurf] || state.playerTurf;
+      turfEl.textContent = ZONE_LABELS[state.playerTurf] || state.playerTurf;
       turfEl.className = 'lobby-slot-turf picker-tap ' + (TURF_CLASS[state.playerTurf] || '');
       turfEl.style.visibility = '';
     } else {
@@ -415,7 +414,7 @@ function updateLobbyPickerDisplay() {
       turfEl.style.visibility = 'hidden';
     }
   }
-  const color  = ICON_COLORS[state.playerIcon] || '#ffffff';
+  const color  = ICON_META[state.playerIcon] || '#ffffff';
   const shadow = `-0.5px 1px 1.25px ${color}cc,0.5px 1px 1.25px ${color}cc`;
   if (iconEl) iconEl.style.textShadow = shadow;
   const nameTextEl = document.querySelector('.lobby-slot--me .lobby-slot-name > span:first-child');
@@ -443,8 +442,8 @@ function cycleIcon(dir) {
   }, 180);
 }
 function cycleTurf(dir) {
-  const cur = PLAYER_TURFS.indexOf(state.playerTurf);
-  const next = PLAYER_TURFS[(cur + dir + PLAYER_TURFS.length) % PLAYER_TURFS.length];
+  const cur = ZONES.indexOf(state.playerTurf);
+  const next = ZONES[(cur + dir + ZONES.length) % ZONES.length];
   state.playerTurf = next;
   localStorage.setItem('heatsync_turf', next);
   updateLobbyPickerDisplay();
@@ -551,7 +550,7 @@ function setupSettingsModal() {
 
 /* ── Landing helpers (shared) ────────────────────────────────────────────── */
 function genCode() {
-  return Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+  return Array.from({ length: 4 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
 }
 function showLandingView(view) {
   document.getElementById('landing-home').classList.toggle('hidden', view !== 'home');
@@ -670,7 +669,7 @@ function goToAllocation(gs) {
   const me = myPlayer();
   allocState.myResources = me ? me.resources : 0;
   allocState.selectedZones = new Set();
-  allocState.resources = { east: 0, west: 0, downtown: 0 };
+  allocState.resources = { docks: 0, strip: 0, slums: 0 };
   updateRoundTrack('alloc-round-track', gs.round);
   renderHeatPips(me ? me.heat : 0);
   updateIngameCodeBadges();
@@ -678,7 +677,7 @@ function goToAllocation(gs) {
     card.classList.remove('selected');
     setZoneResRowActive(card.dataset.zone, false);
   });
-  ZONE_KEYS.forEach(z => setZoneResVal(z, 0));
+  ZONES.forEach(z => setZoneResVal(z, 0));
   refreshAllZonePips(); updateRemaining(); updateSubmitBtn();
   document.getElementById('alloc-submit-section').classList.remove('hidden');
   document.getElementById('alloc-waiting').classList.add('hidden');
@@ -725,9 +724,9 @@ function updateSubmitBtn() {
 function submitAllocation() {
   if (state.hasSubmitted) return;
   const allocation = {
-    east:     { crew: allocState.selectedZones.has('east')     ? 1 : 0, resources: allocState.resources.east },
-    west:     { crew: allocState.selectedZones.has('west')     ? 1 : 0, resources: allocState.resources.west },
-    downtown: { crew: allocState.selectedZones.has('downtown') ? 1 : 0, resources: allocState.resources.downtown },
+    docks: { crew: allocState.selectedZones.has('docks') ? 1 : 0, resources: allocState.resources.docks },
+    strip: { crew: allocState.selectedZones.has('strip') ? 1 : 0, resources: allocState.resources.strip },
+    slums: { crew: allocState.selectedZones.has('slums') ? 1 : 0, resources: allocState.resources.slums },
   };
   state.socket.emit('submit_allocation', { roomCode: state.roomCode, allocation });
   state.hasSubmitted = true;
@@ -782,12 +781,12 @@ function goToReveal(resolveData, gs, isGameOver) {
   state.lastResolveData = resolveData;
   updateRoundTrack('reveal-round-track', resolveData.round);
   const totalsEl = document.getElementById('reveal-zone-totals');
-  totalsEl.innerHTML = ZONE_DISPLAY_ORDER.map(zone => {
+  totalsEl.innerHTML = ZONES.map(zone => {
     const total = resolveData.zoneTotals[zone];
     const role  = resolveData.classification.outcome === 'all_tied'
       ? 'tied' : resolveData.classification.roles[zone];
     return `<div class="zone-total-card zt-zone--${zone}">
-      <div class="zt-name zt-name--${zone}">${ZONE_NAMES[zone]}</div>
+      <div class="zt-name zt-name--${zone}">${ZONE_LABELS[zone]}</div>
       <div class="zt-number">${total}</div>
       <div class="zt-role role-${role}">${roleShortLabel(role)}</div>
     </div>`;

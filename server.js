@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const { ZONES, ZONE_TURF, PLAYER_ICONS, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('./lib/gameLogic');
+const { ZONES, CHARS, PLAYER_ICONS, aggregateZones, classifyZones, zoneDelta, validateAllocation, determineWinners } = require('./lib/gameLogic');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -27,11 +27,10 @@ const rooms = new Map(); // roomCode -> Room
 // { socketId, name, resources, heat, connected }
 //
 // ZoneAllocation shape:
-// { east: { crew, resources }, west: { crew, resources }, downtown: { crew, resources } }
+// { docks: { crew, resources }, strip: { crew, resources }, slums: { crew, resources } }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const VALID_CODE_RE = /^[A-Z2-9]{4}$/;
 
 function generateRoomCode() {
@@ -162,8 +161,8 @@ function resolveRound(room) {
       if (crew === 0 && res === 0) continue; // player didn't go here
 
       const role = classification.roles[zone];
-      const isHomeTurf = room.homeTurfEnabled && ZONE_TURF[zone] === player.homeTurf;
-      const delta = zoneDelta(crew, res, role, classification.outcome, isHomeTurf);
+      const isHomeTurf = room.homeTurfEnabled && zone === player.homeTurf;
+      const delta = zoneDelta(crew, res, role, classification.outcome, isHomeTurf, room.crewRecoveryCostEnabled !== false);
       totalDelta += delta;
 
       // Crew-only tied_highest: floor(1/2)=0 means crew is lost — charge 1 Ⓡ after all other deltas
@@ -393,6 +392,14 @@ io.on('connection', (socket) => {
     if (room.players.size < 3) { socket.emit('error', { message: 'Need at least 3 players' }); return; }
 
     room.readyPlayers.clear();
+
+    // Randomize home turf assignments when the setting is enabled
+    if (room.homeTurfEnabled) {
+      const players = [...room.players.values()];
+      const shuffled = [...ZONES].sort(() => Math.random() - 0.5);
+      players.forEach((p, i) => { p.homeTurf = shuffled[i % shuffled.length]; });
+    }
+
     room.phase = 'allocation';
     io.to(roomCode).emit('phase_changed', { phase: 'allocation', state: getPublicState(room) });
     startAllocationTimer(room, roomCode);

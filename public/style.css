@@ -1387,19 +1387,19 @@ input[type="password"]::placeholder {
   box-shadow: 0 0 16px rgba(0, 0, 0, 0.2);
 }
 
-.zone-card.selected[data-zone="east"] {
+.zone-card.selected[data-zone="slums"] {
   border-color: var(--amber);
   background: rgba(255, 190, 11, 0.08);
   box-shadow: 0 0 18px rgba(255, 190, 11, 0.12);
 }
 
-.zone-card.selected[data-zone="west"] {
+.zone-card.selected[data-zone="docks"] {
   border-color: var(--blue);
   background: rgba(77, 142, 240, 0.08);
   box-shadow: 0 0 18px rgba(77, 142, 240, 0.12);
 }
 
-.zone-card.selected[data-zone="downtown"] {
+.zone-card.selected[data-zone="strip"] {
   border-color: var(--purple);
   background: rgba(168, 85, 247, 0.08);
   box-shadow: 0 0 18px rgba(168, 85, 247, 0.1);
@@ -1412,9 +1412,9 @@ input[type="password"]::placeholder {
   letter-spacing: 0.04em;
 }
 
-.zone-card[data-zone="east"]     .zone-name { color: var(--amber); }
-.zone-card[data-zone="west"]     .zone-name { color: var(--blue); }
-.zone-card[data-zone="downtown"] .zone-name { color: #c084fc; }
+.zone-card[data-zone="slums"] .zone-name { color: var(--amber); }
+.zone-card[data-zone="docks"] .zone-name { color: var(--blue); }
+.zone-card[data-zone="strip"] .zone-name { color: #c084fc; }
 
 .zone-crew {
   font-size: 0.72rem;
@@ -1429,14 +1429,14 @@ input[type="password"]::placeholder {
 }
 
 /* Crew is always white — zone color only on the resource label + pips */
-.zone-card.selected[data-zone="east"]     .zone-res-label { color: var(--amber); }
-.zone-card.selected[data-zone="west"]     .zone-res-label { color: var(--blue); }
-.zone-card.selected[data-zone="downtown"] .zone-res-label { color: #c084fc; }
+.zone-card.selected[data-zone="slums"] .zone-res-label { color: var(--amber); }
+.zone-card.selected[data-zone="docks"] .zone-res-label { color: var(--blue); }
+.zone-card.selected[data-zone="strip"] .zone-res-label { color: #c084fc; }
 
 /* Resource pips match zone color */
-.zone-card[data-zone="east"]     .zone-pip--res { background: var(--amber);  box-shadow: 0 0 5px var(--amber-glow); }
-.zone-card[data-zone="west"]     .zone-pip--res { background: var(--blue);   box-shadow: 0 0 5px var(--blue-glow); }
-.zone-card[data-zone="downtown"] .zone-pip--res { background: #c084fc;       box-shadow: 0 0 5px var(--purple-glow); }
+.zone-card[data-zone="slums"] .zone-pip--res { background: var(--amber);  box-shadow: 0 0 5px var(--amber-glow); }
+.zone-card[data-zone="docks"] .zone-pip--res { background: var(--blue);   box-shadow: 0 0 5px var(--blue-glow); }
+.zone-card[data-zone="strip"] .zone-pip--res { background: #c084fc;       box-shadow: 0 0 5px var(--purple-glow); }
 
 .zone-res-label {
   font-size: 0.62rem;
@@ -1608,9 +1608,9 @@ input[type="password"]::placeholder {
 }
 
 /* Zone-identity borders on reveal cards */
-.zt-zone--east     { border-color: rgba(255, 190, 11, 0.35);  box-shadow: 0 0 14px rgba(255, 190, 11, 0.06); }
-.zt-zone--west     { border-color: rgba(77, 142, 240, 0.35);  box-shadow: 0 0 14px rgba(77, 142, 240, 0.06); }
-.zt-zone--downtown { border-color: rgba(168, 85, 247, 0.35);  box-shadow: 0 0 14px rgba(168, 85, 247, 0.06); }
+.zt-zone--slums { border-color: rgba(255, 190, 11, 0.35);  box-shadow: 0 0 14px rgba(255, 190, 11, 0.06); }
+.zt-zone--docks { border-color: rgba(77, 142, 240, 0.35);  box-shadow: 0 0 14px rgba(77, 142, 240, 0.06); }
+.zt-zone--strip { border-color: rgba(168, 85, 247, 0.35);  box-shadow: 0 0 14px rgba(168, 85, 247, 0.06); }
 
 .zone-total-card .zt-name {
   font-size: 0.72rem;
@@ -1619,13 +1619,13 @@ input[type="password"]::placeholder {
   letter-spacing: 0.06em;
 }
 
-.zone-total-card .zt-name--east     { color: var(--amber);  font-weight: 700; }
-.zone-total-card .zt-name--downtown { color: var(--purple); font-weight: 700; }
-.zone-total-card .zt-name--west     { color: var(--blue);   font-weight: 700; }
+.zone-total-card .zt-name--slums { color: var(--amber);  font-weight: 700; }
+.zone-total-card .zt-name--strip { color: var(--purple); font-weight: 700; }
+.zone-total-card .zt-name--docks { color: var(--blue);   font-weight: 700; }
 
-.zone-tag--east     { color: var(--amber)  !important; }
-.zone-tag--downtown { color: var(--purple) !important; }
-.zone-tag--west     { color: var(--blue)   !important; }
+.zone-tag--slums { color: var(--amber)  !important; }
+.zone-tag--strip { color: var(--purple) !important; }
+.zone-tag--docks { color: var(--blue)   !important; }
 
 .reveal-ready-line {
   margin: 0.65rem 0 0.25rem;
@@ -1708,9 +1708,9 @@ input[type="password"]::placeholder {
 .rr-header span:nth-child(6) { text-align: right; }
 
 /* Zone column header colors */
-.rr-hdr-west     { color: var(--blue)   !important; }
-.rr-hdr-downtown { color: var(--purple) !important; }
-.rr-hdr-east     { color: var(--amber)  !important; }
+.rr-hdr-docks { color: var(--blue)   !important; }
+.rr-hdr-strip { color: var(--purple) !important; }
+.rr-hdr-slums { color: var(--amber)  !important; }
 .rr-hdr-heat     { color: var(--neg)    !important; }
 
 .rr-row {
@@ -2081,9 +2081,9 @@ input[type="password"]::placeholder {
 .htp-outcome--neu { border-color: rgba(255,255,255,0.15); }
 .htp-outcome--neu .htp-outcome__label { color: var(--text-mid); }
 .htp-zone { font-weight: 700; }
-.htp-zone--west     { color: var(--blue); }
-.htp-zone--downtown { color: var(--purple); }
-.htp-zone--east     { color: var(--amber); }
+.htp-zone--docks { color: var(--blue); }
+.htp-zone--strip { color: var(--purple); }
+.htp-zone--slums { color: var(--amber); }
 
 /* Nav row */
 .htp-nav {

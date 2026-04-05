@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "HeatSync (production)",
-      "runtimeExecutable": "/opt/homebrew/bin/npm",
+      "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 3000
     },
     {
       "name": "HeatSync (dev, watch)",
-      "runtimeExecutable": "/Users/babak/Files/Coding/Games/HeatSync/scripts/dev-server.sh",
+      "runtimeExecutable": "./scripts/dev-server.sh",
       "runtimeArgs": [],
       "port": 3002
     }

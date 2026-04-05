@@ -165,6 +165,7 @@ function initReconnectBanner() {
       banner.classList.add('hidden');
       state.reconnectBannerPending = false;
       sessionStorage.removeItem('heatsync_session');
+      // TODO (next version): Close reconnect banner when user leaves main menu (presses Create or Join)
     }, { once: true });
   } catch (_) {}
 }

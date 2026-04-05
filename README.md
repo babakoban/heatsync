@@ -59,30 +59,3 @@ npm run test:html      # HTML structure tests only
 
 Tests use Node's built-in `node:test` runner — no external framework required.
 
----
-
-## Architecture
-
-```
-server.js              Web server (Express + Socket.io)
-lib/gameLogic.js       Pure game logic — shared by server and P2P host
-public/
-  client.js            Browser client (socket.io transport)
-  shared.js            Shared UI logic used by both web and Electron clients
-  style.css
-electron/
-  main.js              Electron main process
-electron-app/
-  client-p2p.js        Electron client (PeerJS P2P transport)
-p2p/
-  peer-host.js         P2P host — mirrors server.js game logic over WebRTC
-  peer-client.js       Socket.io-compatible shim over PeerJS DataConnection
-views/
-  game.html            Single-source HTML template (generates web + electron builds)
-test/
-  gameLogic.test.js    Unit tests for pure game logic
-  server.test.js       Integration tests for socket.io server
-  html.test.js         HTML structure and build-consistency tests
-```
-
-The HTML template (`views/game.html`) uses `<!--[WEB]-->` / `<!--[ELECTRON]-->` markers to manage platform-specific sections. Run `npm run build-html` after editing the template to regenerate `public/index.html` and `electron-app/index.html`.

@@ -80,14 +80,14 @@ function disconnectAll(...players) {
 }
 
 // Build a valid allocation for a player with `res` resources,
-// splitting them between east and west.
+// splitting them between docks and strip.
 function allocFor(res) {
   const r1 = Math.ceil(res / 2);
   const r2 = res - r1;
   return {
-    east:     { crew: 1, resources: r1 },
-    west:     { crew: 1, resources: r2 },
-    downtown: { crew: 0, resources: 0 },
+    docks: { crew: 1, resources: r1 },
+    strip: { crew: 1, resources: r2 },
+    slums: { crew: 0, resources: 0 },
   };
 }
 
@@ -383,9 +383,9 @@ describe('submit_allocation', () => {
     host.socket.emit('submit_allocation', {
       roomCode,
       allocation: {
-        east:     { crew: 1, resources: 1 }, // only 1 crew zone
-        west:     { crew: 0, resources: 0 },
-        downtown: { crew: 0, resources: 0 },
+        docks: { crew: 1, resources: 1 }, // only 1 crew zone
+        strip: { crew: 0, resources: 0 },
+        slums: { crew: 0, resources: 0 },
       },
     });
     const err = await errP;

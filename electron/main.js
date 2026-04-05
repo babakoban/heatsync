@@ -11,10 +11,10 @@ if (!gotLock) {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1024,
-    height: 768,
-    minWidth: 480,
-    minHeight: 600,
+    width: 1280,
+    height: 720,
+    minWidth: 800,
+    minHeight: 450,
     title: 'HeatSync',
     show: false,           // hold until first paint — avoids blank window on startup
     backgroundColor: '#12121e',
